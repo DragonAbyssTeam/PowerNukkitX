@@ -73,7 +73,7 @@ public class Item implements Cloneable, BlockID, ItemID {
     public static Class[] list = null;
 
     private static Map<String, Integer> itemIds = Arrays.stream(ItemID.class.getDeclaredFields())
-            .filter(field-> field.getModifiers() == (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL))
+            .filter(field -> field.getModifiers() == (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL))
             .filter(field -> field.getType().equals(int.class))
             .collect(Collectors.toMap(
                     field -> field.getName().toLowerCase(),
@@ -88,7 +88,7 @@ public class Item implements Cloneable, BlockID, ItemID {
             ));
 
     private static Map<String, Integer> blockIds = Arrays.stream(BlockID.class.getDeclaredFields())
-            .filter(field-> field.getModifiers() == (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL))
+            .filter(field -> field.getModifiers() == (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL))
             .filter(field -> field.getType().equals(int.class))
             .collect(Collectors.toMap(
                     field -> field.getName().toLowerCase(),
@@ -145,7 +145,7 @@ public class Item implements Cloneable, BlockID, ItemID {
             this.hasMeta = false;
         }
         this.count = count;
-        this.name = name != null? name.intern() : null;
+        this.name = name != null ? name.intern() : null;
         /*f (this.block != null && this.id <= 0xff && Block.list[id] != null) { //probably useless
             this.block = Block.get(this.id, this.meta);
             this.name = this.block.getName();
@@ -466,7 +466,7 @@ public class Item implements Cloneable, BlockID, ItemID {
     public static List<String> rebuildItemList() {
         return itemList = Collections.unmodifiableList(Stream.of(
                 BlockStateRegistry.getPersistenceNames().stream()
-                        .map(name-> name.substring(name.indexOf(':') + 1)),
+                        .map(name -> name.substring(name.indexOf(':') + 1)),
                 itemIds.keySet().stream()
         ).flatMap(Function.identity()).distinct().collect(Collectors.toList()));
     }
@@ -489,7 +489,7 @@ public class Item implements Cloneable, BlockID, ItemID {
         clearCreativeItems();
 
         Config config = new Config(Config.JSON);
-        try(InputStream resourceAsStream = Server.class.getClassLoader().getResourceAsStream("creativeitems.json")) {
+        try (InputStream resourceAsStream = Server.class.getClassLoader().getResourceAsStream("creativeitems.json")) {
             config.load(resourceAsStream);
         }
         List<Map> list = config.getMapList("items");
@@ -584,15 +584,56 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     @PowerNukkitXOnly
     @Since("1.6.0.0-PNX")
-    public static void registerCustomItem(Class<? extends ItemCustom> c) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    private static boolean checkIsNotEnableCustomItem(Class<? extends ItemCustom> c) {
         if (!Server.getInstance().isEnableCustomItem()) {
             log.warn("The server does not have the custom item feature enabled. " + c.getName() + "Unable to register!");
-            return;
+            return true;
         }
+        return false;
+    }
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    public static void registerCustomItem(Class<? extends ItemCustom> c) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        if (checkIsNotEnableCustomItem(c)) return;
         ItemCustom itemCustom = c.getDeclaredConstructor().newInstance();
-        CUSTOM_ITEMS.put(itemCustom.getNamespaceId(), c);
+        registerCustomItem(itemCustom);
+    }
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    public static void registerCustomItem(String namespaceId, String name, Class<? extends ItemCustom> c) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        if (checkIsNotEnableCustomItem(c)) return;
+        ItemCustom itemCustom = c.getDeclaredConstructor(String.class, String.class).newInstance(namespaceId, name);
+        registerCustomItem(itemCustom);
+    }
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    public static void registerCustomItem(String namespaceId, String name, String textureName, Class<? extends ItemCustom> c) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        if (checkIsNotEnableCustomItem(c)) return;
+        ItemCustom itemCustom = c.getDeclaredConstructor(String.class, String.class, String.class).newInstance(namespaceId, name, textureName);
+        registerCustomItem(itemCustom);
+    }
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    public static void registerCustomItem(ItemCustom itemCustom) {
+        CUSTOM_ITEMS.put(itemCustom.getNamespaceId(), itemCustom.getClass());
         RuntimeItems.getRuntimeMapping().registerCustomItem(itemCustom);
         addCreativeItem(itemCustom);
+    }
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    public static boolean isCustomItem(Item item) {
+        return CUSTOM_ITEMS.containsKey(item.getNamespaceId());
+    }
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    public static boolean isCustomItem(String namespaceId) {
+        return CUSTOM_ITEMS.containsKey(namespaceId);
     }
 
     @PowerNukkitXOnly
@@ -602,7 +643,6 @@ public class Item implements Cloneable, BlockID, ItemID {
             ItemCustom itemCustom = (ItemCustom) fromString(namespaceId);
             removeCreativeItem(itemCustom);
             CUSTOM_ITEMS.remove(namespaceId);
-
             RuntimeItems.getRuntimeMapping().deleteCustomItem(itemCustom);
         }
     }
@@ -704,7 +744,7 @@ public class Item implements Cloneable, BlockID, ItemID {
             Item item;
 
             if (id < 256) {
-                int blockId = id < 0? 255 - id : id;
+                int blockId = id < 0 ? 255 - id : id;
                 if (meta == 0) {
                     item = new ItemBlock(Block.get(blockId), 0, count);
                 } else if (meta == -1) {
@@ -745,7 +785,7 @@ public class Item implements Cloneable, BlockID, ItemID {
             return item;
         } catch (Exception e) {
             log.error("Error getting the item {}:{}{}! Returning an unsafe item stack!",
-                    id, meta, id < 0? " ("+(255 - id)+")":"", e);
+                    id, meta, id < 0 ? " (" + (255 - id) + ")" : "", e);
             return new Item(id, meta, count).setCompoundTag(tags);
         }
     }
@@ -780,10 +820,10 @@ public class Item implements Cloneable, BlockID, ItemID {
                 namespacedId = "minecraft:" + name;
             }
             if (CUSTOM_ITEMS.containsKey(namespacedId)) {
-               ItemCustom itemCustom = (ItemCustom) RuntimeItems.getRuntimeMapping().getItemByNamespaceId(namespacedId, 1);
-               if (itemCustom == null) {
-                   return get(AIR);
-               }
+                ItemCustom itemCustom = (ItemCustom) RuntimeItems.getRuntimeMapping().getItemByNamespaceId(namespacedId, 1);
+                if (itemCustom == null) {
+                    return get(AIR);
+                }
                 if (meta.isPresent()) {
                     int damage = meta.getAsInt();
                     if (damage < 0) {
@@ -880,7 +920,7 @@ public class Item implements Cloneable, BlockID, ItemID {
         RuntimeItemMapping mapping = RuntimeItems.getRuntimeMapping();
         int legacyFullId = mapping.getLegacyFullId(networkId);
         int id = RuntimeItems.getId(legacyFullId);
-        OptionalInt meta = RuntimeItems.hasData(legacyFullId)? OptionalInt.of(RuntimeItems.getData(legacyFullId)) : OptionalInt.empty();
+        OptionalInt meta = RuntimeItems.hasData(legacyFullId) ? OptionalInt.of(RuntimeItems.getData(legacyFullId)) : OptionalInt.empty();
         if (data.containsKey("damage")) {
             int jsonMeta = Utils.toInt(data.get("damage"));
             if (jsonMeta != Short.MAX_VALUE) {
@@ -999,7 +1039,7 @@ public class Item implements Cloneable, BlockID, ItemID {
     //Whether to apply the enchantment effect when using this item
     @PowerNukkitOnly
     @Since("1.6.0.0-PNX")
-    public boolean applyEnchantments(){
+    public boolean applyEnchantments() {
         return true;
     }
 
@@ -1021,6 +1061,7 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     /**
      * Find the enchantment level by the enchantment id.
+     *
      * @param id The enchantment ID from {@link Enchantment} constants.
      * @return {@code 0} if the item don't have that enchantment or the current level of the given enchantment.
      */
@@ -1125,6 +1166,7 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     /**
      * Convenience method to check if the item stack has positive level on a specific enchantment by it's id.
+     *
      * @param id The enchantment ID from {@link Enchantment} constants.
      */
     @Since("1.4.0.0-PN")
@@ -1140,7 +1182,7 @@ public class Item implements Cloneable, BlockID, ItemID {
                 .flatMap(enchantment -> Arrays.stream(enchantment.getAttackSideEffects(attacker, entity)))
                 .filter(Objects::nonNull)
                 .toArray(SideEffect[]::new)
-        ;
+                ;
     }
 
     @Since("1.4.0.0-PN")
@@ -1430,7 +1472,7 @@ public class Item implements Cloneable, BlockID, ItemID {
     }
 
     public int getMaxStackSize() {
-        return block == null? 64 : block.getItemMaxStackSize();
+        return block == null ? 64 : block.getItemMaxStackSize();
     }
 
     final public Short getFuelTime() {
@@ -1529,6 +1571,7 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     /**
      * If the item is resistant to lava and fire and can float on lava like if it was on water.
+     *
      * @since 1.4.0.0-PN
      */
     @PowerNukkitOnly
@@ -1543,7 +1586,8 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     /**
      * Allows the item to execute code when the player releases the item after long clicking it.
-     * @param player The player who released the click button
+     *
+     * @param player    The player who released the click button
      * @param ticksUsed How many ticks the item was held.
      * @return If an inventory contents update should be sent to the player
      */
@@ -1554,7 +1598,7 @@ public class Item implements Cloneable, BlockID, ItemID {
     @Override
     final public String toString() {
         return "Item " + this.name +
-                " (" + (this instanceof StringItem? this.getNamespaceId() :this.id)
+                " (" + (this instanceof StringItem ? this.getNamespaceId() : this.id)
                 + ":" + (!this.hasMeta ? "?" : this.meta)
                 + ")x" + this.count
                 + (this.hasCustomCompoundTag() ? " tags:0x" + Binary.bytesToHexString(this.getCustomCompoundTag()) : "");
@@ -1587,6 +1631,7 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     /**
      * When true, this item can be used to reduce growing times like a bone meal.
+     *
      * @return {@code true} if it can act like a bone meal
      */
     @Since("1.4.0.0-PN")
@@ -1599,7 +1644,7 @@ public class Item implements Cloneable, BlockID, ItemID {
      * Called when a player uses the item on air, for example throwing a projectile.
      * Returns whether the item was changed, for example count decrease or durability change.
      *
-     * @param player player
+     * @param player          player
      * @param directionVector direction
      * @return item changed
      */
@@ -1644,6 +1689,7 @@ public class Item implements Cloneable, BlockID, ItemID {
 
     /**
      * Same as {@link #equals(Item, boolean)} but the enchantment order of the items does not affect the result.
+     *
      * @since 1.2.1.0-PN
      */
     @PowerNukkitOnly
