@@ -619,6 +619,7 @@ public class Item implements Cloneable, BlockID, ItemID {
     @PowerNukkitXOnly
     @Since("1.6.0.0-PNX")
     public static void registerCustomItem(ItemCustom itemCustom) {
+        if (checkIsNotEnableCustomItem(itemCustom.getClass())) return;
         CUSTOM_ITEMS.put(itemCustom.getNamespaceId(), itemCustom.getClass());
         RuntimeItems.getRuntimeMapping().registerCustomItem(itemCustom);
         addCreativeItem(itemCustom);
