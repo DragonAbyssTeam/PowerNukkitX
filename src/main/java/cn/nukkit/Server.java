@@ -68,6 +68,7 @@ import cn.nukkit.permission.BanList;
 import cn.nukkit.permission.DefaultPermissions;
 import cn.nukkit.permission.Permissible;
 import cn.nukkit.plugin.*;
+import cn.nukkit.plugin.js.JSIInitiator;
 import cn.nukkit.plugin.service.NKServiceManager;
 import cn.nukkit.plugin.service.ServiceManager;
 import cn.nukkit.positiontracking.PositionTrackingService;
@@ -103,6 +104,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -159,7 +161,7 @@ public class Server {
     private final NukkitConsole console;
     private final ConsoleThread consoleThread;
 
-    public final Executor computeThreadPool;
+    public final ForkJoinPool computeThreadPool;
 
     private SimpleCommandMap commandMap;
 
@@ -326,7 +328,7 @@ public class Server {
         
         console = new NukkitConsole(this);
         consoleThread = new ConsoleThread();
-        this.computeThreadPool = Executors.newWorkStealingPool();
+        this.computeThreadPool = new ForkJoinPool();
         properties = new Config();
         banByName = new BanList(dataPath + "banned-players.json");
         banByIP = new BanList(dataPath + "banned-ips.json");
@@ -372,7 +374,7 @@ public class Server {
         this.consoleThread = new ConsoleThread();
         this.consoleThread.start();
 
-        this.computeThreadPool = Executors.newWorkStealingPool();
+        this.computeThreadPool = new ForkJoinPool();
 
         this.playerDataSerializer = new DefaultPlayerDataSerializer(this);
 
@@ -1063,6 +1065,7 @@ public class Server {
         }
 
         this.pluginManager.registerInterface(JavaPluginLoader.class);
+        JSIInitiator.reset();
         this.pluginManager.registerInterface(JSPluginLoader.class);
         this.pluginManager.loadPlugins(this.pluginPath);
         this.enablePlugins(PluginLoadOrder.STARTUP);
