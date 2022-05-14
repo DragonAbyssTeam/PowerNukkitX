@@ -417,7 +417,6 @@ public class BinaryStream {
             if (stringId == null) {
                 throw unknownMapping;
             }
-            id = ItemID.STRING_IDENTIFIED_ITEM;
         }
 
         if (getBoolean()) { // hasNetId
@@ -425,7 +424,7 @@ public class BinaryStream {
         }
 
         int blockRuntimeId = getVarInt();
-        if (id != ItemID.STRING_IDENTIFIED_ITEM && id <= 255 && id != FALLBACK_ID) {
+        if (id != null && id <= 255 && id != FALLBACK_ID) {
             BlockState blockStateByRuntimeId = BlockStateRegistry.getBlockStateByRuntimeId(blockRuntimeId);
             if (blockStateByRuntimeId != null) {
                 damage = blockStateByRuntimeId.asItemBlock().getDamage();
@@ -454,7 +453,7 @@ public class BinaryStream {
 
             if (compoundTag != null && compoundTag.getAllTags().size() > 0) {
                 if (compoundTag.contains("Damage")) {
-                    if (id > 255) {
+                    if (stringId != null || (id != null && id > 255)) {
                         damage = compoundTag.getInt("Damage");
                     }
                     compoundTag.remove("Damage");
@@ -477,7 +476,7 @@ public class BinaryStream {
                 canBreak[i] = stream.readUTF();
             }
 
-            if (id != ItemID.STRING_IDENTIFIED_ITEM && id == ItemID.SHIELD) {
+            if (id != null && id == ItemID.SHIELD) {
                 stream.readLong();
             }
         } catch (IOException e) {
@@ -487,7 +486,7 @@ public class BinaryStream {
         }
 
         Item item = null;
-        if (id != ItemID.STRING_IDENTIFIED_ITEM) {
+        if (id != null) {
             item = readUnknownItem(Item.get(id, damage, count, nbt));
         } else if (stringId != null) {
             final Item tmp = Item.fromString(stringId);
