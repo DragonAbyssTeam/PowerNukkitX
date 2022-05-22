@@ -155,7 +155,7 @@ public class RuntimeItemMapping {
         this.customItemEntries.put(itemCustom.getNamespaceId(), entry);
         this.entries.add(entry);
 
-        this.namespacedIdItem.put(itemCustom.getNamespaceId(), () -> itemCustom.clone());
+        this.namespacedIdItem.put(itemCustom.getNamespaceId(), itemCustom::clone);
 
         this.namespaceNetworkMap.put(itemCustom.getNamespaceId(), OptionalInt.of(itemCustom.getRuntimeId()));
         this.networkNamespaceMap.put(itemCustom.getRuntimeId(), itemCustom.getNamespaceId());
