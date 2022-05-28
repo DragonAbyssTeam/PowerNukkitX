@@ -8,12 +8,12 @@ import cn.nukkit.command.Command;
 import cn.nukkit.command.CommandSender;
 import cn.nukkit.command.data.CommandDataVersions;
 import cn.nukkit.command.utils.RawText;
+import cn.nukkit.dialog.handler.FormDialogHandler;
+import cn.nukkit.dialog.window.FormWindowDialog;
 import cn.nukkit.entity.*;
-import cn.nukkit.entity.data.IntPositionEntityData;
-import cn.nukkit.entity.data.ShortEntityData;
-import cn.nukkit.entity.data.Skin;
-import cn.nukkit.entity.data.StringEntityData;
+import cn.nukkit.entity.data.*;
 import cn.nukkit.entity.item.*;
+import cn.nukkit.entity.passive.EntityNPCEntity;
 import cn.nukkit.entity.projectile.EntityArrow;
 import cn.nukkit.entity.projectile.EntityProjectile;
 import cn.nukkit.entity.projectile.EntityThrownTrident;
@@ -286,6 +286,11 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
     protected int formWindowCount = 0;
     protected Map<Integer, FormWindow> formWindows = new Int2ObjectOpenHashMap<>();
     protected Map<Integer, FormWindow> serverSettings = new Int2ObjectOpenHashMap<>();
+
+    @PowerNukkitXOnly
+    @Since("1.6.0.0-PNX")
+    //         RuntimeEntityId    Window
+    protected Map<Long, FormWindowDialog> dialogWindows = new Long2ObjectOpenHashMap();
 
     protected Map<Long, DummyBossBar> dummyBossBars = new Long2ObjectLinkedOpenHashMap<>();
 
@@ -2052,7 +2057,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
         if (canInteract(this, interactDistance)) {
             if (getEntityPlayerLookingAt(interactDistance) != null) {
                 EntityInteractable onInteract = getEntityPlayerLookingAt(interactDistance);
-                setButtonText(onInteract.getInteractButtonText());
+                setButtonText(onInteract.getInteractButtonText(this));
             } else {
                 setButtonText("");
             }
@@ -3109,7 +3114,33 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                     }
 
                     break;
+                case ProtocolInfo.NPC_REQUEST_PACKET:
+                    NPCRequestPacket npcRequestPacket = (NPCRequestPacket) packet;
+                    if (dialogWindows.containsKey(npcRequestPacket.getRequestedEntityRuntimeId())) {
+                        //remove the window from the map only if the requestType is EXECUTE_CLOSING_COMMANDS
+                        /**
+                         * notice that creative players will send SET_ACTIONS back when they cancel the dialog
+                         * so we have no way to know if the player cancelled the dialog or not
+                         * todo: solve this problem
+                         **/
+                        FormWindowDialog dialog = npcRequestPacket.getRequestType() == NPCRequestPacket.RequestType.EXECUTE_CLOSING_COMMANDS ? dialogWindows.remove(npcRequestPacket.getRequestedEntityRuntimeId()) : dialogWindows.get(npcRequestPacket.getRequestedEntityRuntimeId());
+                        //close dialog after clicked button (otherwise the client will not be able to close the window)
+                        if(dialog.closeWhenClicked() && npcRequestPacket.getRequestType() == NPCRequestPacket.RequestType.EXECUTE_ACTION){
+                            NPCDialoguePacket closeWindowPacket = new NPCDialoguePacket();
+                            closeWindowPacket.setRuntimeEntityId(npcRequestPacket.getRequestedEntityRuntimeId());
+                            closeWindowPacket.setAction(NPCDialoguePacket.NPCDialogAction.CLOSE);
+                            this.dataPacket(closeWindowPacket);
+                        }
+                        dialog.setResponse(npcRequestPacket);
 
+                        for(FormDialogHandler handler : dialog.getHandlers()) {
+                            handler.handle(this, dialog.getResponse());
+                        }
+
+                        PlayerDialogRespondedEvent event = new PlayerDialogRespondedEvent(this, dialog);
+                        getServer().getPluginManager().callEvent(event);
+                    }
+                    break;
                 case ProtocolInfo.INTERACT_PACKET:
                     if (!this.spawned || !this.isAlive()) {
                         break;
@@ -5648,6 +5679,27 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
 
         this.dataPacket(packet);
         return id;
+    }
+
+    public void showDialogWindow(FormWindowDialog dialog){
+        if(this.dialogWindows.size() > 10){
+            this.kick("Possible DoS vulnerability: More Than 10 DialogWindow sent to client already.");
+            return;
+        }
+        String actionJson = dialog.getButtonJSONData();
+
+        dialog.getBindEntity().setNameTag(dialog.getTitle());//must do this or the client won't see the title
+        dialog.getBindEntity().setDataProperty(new ByteEntityData(Entity.DATA_HAS_NPC_COMPONENT, 1));
+        dialog.getBindEntity().setDataProperty(new StringEntityData(Entity.DATA_NPC_SKIN_DATA, dialog.getSkinData()));
+        dialog.getBindEntity().setDataProperty(new StringEntityData(Entity.DATA_NPC_ACTIONS, actionJson));
+        dialog.getBindEntity().setDataProperty(new StringEntityData(Entity.DATA_INTERACTIVE_TAG, dialog.getContent()));
+        dialog.setEntityId(dialog.getBindEntity().getId());
+
+        NPCDialoguePacket packet = new NPCDialoguePacket();
+        packet.setRuntimeEntityId(dialog.getEntityId());
+        packet.setAction(NPCDialoguePacket.NPCDialogAction.OPEN);
+        this.dialogWindows.put(packet.getRuntimeEntityId(),dialog);
+        this.dataPacket(packet);
     }
 
     /**
